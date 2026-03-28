@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Worker Dashboard – LabourLink</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+  <nav class="ll-nav">
+    <a href="/" class="ll-brand">⚡ LabourLink</a>
+    <div class="ll-nav-links">
+      <span id="navName" style="color:var(--text-muted);font-size:.9rem;"></span>
+      <button class="btn-secondary-ll" onclick="logout()" style="padding:.4rem .8rem;">Logout</button>
+    </div>
+  </nav>
+
+  <div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <p style="font-size:.75rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;">Worker Menu</p>
+      <nav class="sidebar-nav">
+        <button class="sidebar-item active" onclick="showSection('browse')">🔍 Browse Jobs</button>
+        <button class="sidebar-item" onclick="showSection('applications')">📄 My Applications</button>
+        <button class="sidebar-item" onclick="showSection('profile')">👤 My Profile</button>
+      </nav>
+    </aside>
+
+    <!-- Main -->
+    <main class="main-content">
+
+      <!-- Browse Jobs -->
+      <div id="browse" class="section active">
+        <h2 class="page-title">Browse Available Jobs</h2>
+        <div class="ll-card" style="margin-bottom:1.5rem;">
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:1rem;align-items:end;">
+            <div>
+              <label class="ll-label" for="filterSkill">Filter by Skill</label>
+              <input class="ll-input" id="filterSkill" placeholder="e.g. Plumbing"/>
+            </div>
+            <div>
+              <label class="ll-label" for="filterRadius">Radius (km)</label>
+              <input class="ll-input" id="filterRadius" type="number" value="50" min="1" max="500"/>
+            </div>
+            <button class="btn-primary-ll" onclick="loadJobs()">Search</button>
+          </div>
+        </div>
+        <div id="jobsGrid" class="jobs-grid"><p style="color:var(--text-muted);">Loading jobs...</p></div>
+      </div>
+
+      <!-- My Applications -->
+      <div id="applications" class="section">
+        <h2 class="page-title">My Applications</h2>
+        <div id="appsList"></div>
+      </div>
+
+      <!-- Profile -->
+      <div id="profile" class="section">
+        <h2 class="page-title">My Profile</h2>
+        <div id="profileContent"></div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Apply Modal -->
+  <div id="applyModal" style="display:none;">
+    <div class="ll-modal-overlay" onclick="closeModal()">
+      <div class="ll-modal" onclick="event.stopPropagation()">
+        <div class="ll-modal-title">Apply to Job</div>
+        <input type="hidden" id="applyJobId"/>
+        <div class="ll-form-group">
+          <label class="ll-label">Cover Note (optional)</label>
+          <textarea class="ll-input" id="coverNote" rows="4" placeholder="Tell the contractor why you're the best fit..."></textarea>
+        </div>
+        <div style="display:flex;gap:.75rem;">
+          <button class="btn-primary-ll" onclick="submitApply()">Submit Application</button>
+          <button class="btn-secondary-ll" onclick="closeModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rate Modal -->
+  <div id="rateModal" style="display:none;">
+    <div class="ll-modal-overlay" onclick="closeRateModal()">
+      <div class="ll-modal" onclick="event.stopPropagation()">
+        <div class="ll-modal-title">Rate this Job</div>
+        <input type="hidden" id="rateAppId"/>
+        <div class="ll-form-group">
+          <label class="ll-label">Rating (1–5)</label>
+          <div id="starPicker" style="font-size:2rem;cursor:pointer;letter-spacing:4px;">
+            <span class="star" data-v="1">☆</span><span class="star" data-v="2">☆</span>
+            <span class="star" data-v="3">☆</span><span class="star" data-v="4">☆</span><span class="star" data-v="5">☆</span>
+          </div>
+          <input type="hidden" id="ratingValue" value="0"/>
+        </div>
+        <div class="ll-form-group">
+          <label class="ll-label">Comment</label>
+          <textarea class="ll-input" id="ratingComment" rows="3" placeholder="Share your experience..."></textarea>
+        </div>
+        <div style="display:flex;gap:.75rem;">
+          <button class="btn-primary-ll" onclick="submitRating()">Submit Rating</button>
+          <button class="btn-secondary-ll" onclick="closeRateModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"><span id="toastIcon"></span><span id="toastMsg"></span></div>
+  <script src="js/auth.js"></script>
+  <script>
+    requireAuth('WORKER');
+    document.getElementById('navName').textContent = '👤 ' + (localStorage.getItem('name') || '');
+
+    function showSection(id) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      document.querySelectorAll('.sidebar-item').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+      if (id === 'applications') loadApplications();
+      if (id === 'profile') loadProfile();
+    }
+
+    // ── BROWSE JOBS ──────────────────────────────
+    async function loadJobs() {
+      const skill = document.getElementById('filterSkill').value.trim();
+      const radius = document.getElementById('filterRadius').value;
+      let url = `/api/jobs?radius=${radius}`;
+      if (skill) url += `&skill=${encodeURIComponent(skill)}`;
+      try {
+        const jobs = await apiGet(url);
+        renderJobs(jobs);
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    function renderJobs(jobs) {
+      const grid = document.getElementById('jobsGrid');
+      if (!jobs.length) { grid.innerHTML = '<p style="color:var(--text-muted)">No jobs found. Try widening your search.</p>'; return; }
+      grid.innerHTML = jobs.map(j => `
+        <div class="ll-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.75rem;">
+            <h3 style="font-weight:700;font-size:1rem;">${escHtml(j.title)}</h3>
+            <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
+              ${j.urgent ? '<span class="ll-badge badge-urgent">🔥 URGENT</span>' : ''}
+              ${statusBadge(j.status)}
+            </div>
+          </div>
+          <p style="color:var(--text-muted);font-size:.85rem;margin-bottom:.75rem;">${escHtml(j.description || '')}</p>
+          <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:.5rem;">
+            📍 ${escHtml(j.location || 'N/A')} &nbsp;·&nbsp; 💼 ${escHtml(j.skillsRequired || 'Any')}
+          </div>
+          <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:1rem;">
+            💰 ${j.payRate ? '₹' + j.payRate + (j.payType ? ' / ' + j.payType : '') : 'Not specified'}
+            &nbsp;·&nbsp; 👥 ${j.applicantCount} applicant(s)
+          </div>
+          <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:1rem;">
+            By <strong style="color:var(--text);">${escHtml(j.contractorName)}</strong>
+          </div>
+          <button class="btn-primary-ll" style="width:100%;" onclick="openApply(${j.id})">Apply Now</button>
+        </div>
+      `).join('');
+    }
+
+    function openApply(jobId) {
+      document.getElementById('applyJobId').value = jobId;
+      document.getElementById('coverNote').value = '';
+      document.getElementById('applyModal').style.display = '';
+    }
+    function closeModal() { document.getElementById('applyModal').style.display = 'none'; }
+
+    async function submitApply() {
+      const jobId = document.getElementById('applyJobId').value;
+      const note = document.getElementById('coverNote').value;
+      try {
+        await apiPost(`/api/jobs/${jobId}/apply`, { coverNote: note });
+        closeModal();
+        showToast('Application submitted! ✅');
+        loadJobs();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    // ── MY APPLICATIONS ──────────────────────────
+    async function loadApplications() {
+      try {
+        const apps = await apiGet('/api/worker/applications');
+        const el = document.getElementById('appsList');
+        if (!apps.length) { el.innerHTML = '<p style="color:var(--text-muted)">No applications yet.</p>'; return; }
+        el.innerHTML = apps.map(a => `
+          <div class="ll-card" style="margin-bottom:1rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <h3 style="font-weight:700;">${escHtml(a.jobTitle)}</h3>
+                <p style="color:var(--text-muted);font-size:.85rem;">📍 ${escHtml(a.jobLocation || '')}</p>
+                <p style="color:var(--text-muted);font-size:.75rem;">Applied ${new Date(a.appliedAt).toLocaleDateString()}</p>
+              </div>
+              <div style="text-align:right;">
+                ${statusBadge(a.status)}
+                ${a.status === 'COMPLETED' ? `<br/><button class="btn-success-ll" style="margin-top:.5rem;font-size:.75rem;" onclick="openRate(${a.id})">⭐ Rate</button>` : ''}
+              </div>
+            </div>
+          </div>
+        `).join('');
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    // ── RATE ─────────────────────────────────────
+    let ratingVal = 0;
+    function openRate(appId) {
+      document.getElementById('rateAppId').value = appId;
+      document.getElementById('ratingValue').value = 0;
+      document.getElementById('ratingComment').value = '';
+      ratingVal = 0; updateStars(0);
+      document.getElementById('rateModal').style.display = '';
+    }
+    function closeRateModal() { document.getElementById('rateModal').style.display = 'none'; }
+
+    document.getElementById('starPicker').addEventListener('click', e => {
+      const s = e.target.closest('.star');
+      if (s) { ratingVal = +s.dataset.v; document.getElementById('ratingValue').value = ratingVal; updateStars(ratingVal); }
+    });
+    function updateStars(n) {
+      document.querySelectorAll('.star').forEach((s,i) => s.textContent = i < n ? '★' : '☆');
+    }
+
+    async function submitRating() {
+      const appId = document.getElementById('rateAppId').value;
+      const rating = +document.getElementById('ratingValue').value;
+      if (!rating) { showToast('Please select a star rating', 'error'); return; }
+      try {
+        await apiPost(`/api/applications/${appId}/rate`, {
+          rating, comment: document.getElementById('ratingComment').value
+        });
+        closeRateModal();
+        showToast('Rating submitted! ⭐');
+        loadApplications();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    // ── PROFILE ───────────────────────────────────
+    async function loadProfile() {
+      const userId = localStorage.getItem('userId');
+      try {
+        const p = await apiGet(`/api/worker/profile/${userId}`);
+        const avg = p.averageRating ? p.averageRating.toFixed(1) : '0.0';
+        document.getElementById('profileContent').innerHTML = `
+          <div class="ll-card" style="margin-bottom:1.5rem;">
+            <h2 style="font-size:1.4rem;font-weight:700;">${escHtml(p.name)}</h2>
+            <p style="color:var(--text-muted);">📧 ${escHtml(p.email)} &nbsp;·&nbsp; 📞 ${escHtml(p.phone || 'N/A')}</p>
+            <p style="margin-top:.5rem;">
+              <span class="stars">${starsHtml(p.averageRating)}</span>
+              <span style="color:var(--text-muted);font-size:.85rem;margin-left:.5rem;">${avg} avg rating</span>
+            </p>
+            ${p.profile?.skills ? `<p style="margin-top:.75rem;font-size:.9rem;"><strong>Skills:</strong> ${escHtml(p.profile.skills)}</p>` : ''}
+          </div>
+          ${p.endorsements?.length ? `
+            <h3 style="font-weight:700;margin-bottom:1rem;">🏅 Endorsements (${p.endorsements.length})</h3>
+            ${p.endorsements.map(e => `
+              <div class="ll-card" style="margin-bottom:.75rem;font-size:.9rem;">✅ ${escHtml(e.skillDescription)}</div>
+            `).join('')}
+          ` : ''}
+        `;
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    function escHtml(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    loadJobs();
+  </script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Login – LabourLink</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+  <div class="auth-wrapper">
+    <div class="auth-card">
+      <a href="/" class="ll-brand" style="display:block;margin-bottom:1.5rem;">⚡ LabourLink</a>
+      <div class="auth-title">Welcome back</div>
+      <p style="color:var(--text-muted);font-size:.9rem;margin-bottom:1.8rem;">Sign in to your account</p>
+
+      <div id="errorMsg" style="display:none;background:rgba(255,107,107,.15);border:1px solid var(--accent);border-radius:.6rem;padding:.75rem 1rem;margin-bottom:1rem;font-size:.85rem;color:var(--accent);"></div>
+
+      <form id="loginForm">
+        <div class="ll-form-group">
+          <label class="ll-label" for="email">Email</label>
+          <input class="ll-input" type="email" id="email" placeholder="you@example.com" required/>
+        </div>
+        <div class="ll-form-group">
+          <label class="ll-label" for="password">Password</label>
+          <input class="ll-input" type="password" id="password" placeholder="••••••••" required/>
+        </div>
+        <button type="submit" class="btn-primary-ll" style="width:100%;padding:.75rem;font-size:1rem;" id="loginBtn">
+          Sign In
+        </button>
+      </form>
+
+      <hr class="divider"/>
+      <p style="text-align:center;color:var(--text-muted);font-size:.9rem;">
+        Don't have an account? <a href="register.html" style="color:var(--primary);font-weight:600;">Register</a>
+      </p>
+    </div>
+  </div>
+
+  <div id="toast"><span id="toastIcon"></span><span id="toastMsg"></span></div>
+
+  <script src="js/auth.js"></script>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('loginBtn');
+      btn.textContent = 'Signing in...'; btn.disabled = true;
+      const errEl = document.getElementById('errorMsg');
+      errEl.style.display = 'none';
+      try {
+        const data = await apiPost('/api/auth/login', {
+          email: document.getElementById('email').value,
+          password: document.getElementById('password').value
+        });
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('role', data.role);
+        localStorage.setItem('userId', data.userId);
+        localStorage.setItem('name', data.name);
+        if (data.role === 'WORKER') window.location.href = 'worker-dashboard.html';
+        else window.location.href = 'contractor-dashboard.html';
+      } catch (err) {
+        errEl.textContent = err.message || 'Invalid email or password';
+        errEl.style.display = 'block';
+        btn.textContent = 'Sign In'; btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

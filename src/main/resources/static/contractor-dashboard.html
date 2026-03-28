@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Contractor Dashboard – LabourLink</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+  <nav class="ll-nav">
+    <a href="/" class="ll-brand">⚡ LabourLink</a>
+    <div class="ll-nav-links">
+      <span id="navName" style="color:var(--text-muted);font-size:.9rem;"></span>
+      <button class="btn-secondary-ll" onclick="logout()" style="padding:.4rem .8rem;">Logout</button>
+    </div>
+  </nav>
+
+  <div class="dashboard-layout">
+    <aside class="sidebar">
+      <p style="font-size:.75rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;">Contractor Menu</p>
+      <nav class="sidebar-nav">
+        <button class="sidebar-item active" onclick="showSection('postJob','this')">➕ Post a Job</button>
+        <button class="sidebar-item" onclick="showSection('myJobs','this')">📋 My Jobs</button>
+        <button class="sidebar-item" onclick="showSection('favorites','this')">⭐ Favourites</button>
+        <button class="sidebar-item" onclick="showSection('profile','this')">👤 My Profile</button>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+
+      <!-- Post Job -->
+      <div id="postJob" class="section active">
+        <h2 class="page-title">Post a New Job</h2>
+        <div class="ll-card" style="max-width:600px;">
+          <form id="jobForm">
+            <div class="ll-form-group">
+              <label class="ll-label">Job Title *</label>
+              <input class="ll-input" id="jTitle" placeholder="e.g. Need Electrician for rewiring" required/>
+            </div>
+            <div class="ll-form-group">
+              <label class="ll-label">Description</label>
+              <textarea class="ll-input" id="jDesc" rows="3" placeholder="Describe the work in detail..."></textarea>
+            </div>
+            <div class="ll-form-group">
+              <label class="ll-label">Skills Required</label>
+              <input class="ll-input" id="jSkills" placeholder="e.g. Electrical, Wiring, Safety"/>
+            </div>
+            <div class="ll-form-group">
+              <label class="ll-label">Location</label>
+              <input class="ll-input" id="jLocation" placeholder="e.g. Andheri West, Mumbai"/>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+              <div class="ll-form-group">
+                <label class="ll-label">Pay Rate (₹)</label>
+                <input class="ll-input" type="number" id="jPay" placeholder="e.g. 500"/>
+              </div>
+              <div class="ll-form-group">
+                <label class="ll-label">Pay Type</label>
+                <select class="ll-input" id="jPayType">
+                  <option value="DAILY">Daily</option>
+                  <option value="HOURLY">Hourly</option>
+                  <option value="FIXED">Fixed</option>
+                </select>
+              </div>
+            </div>
+            <div class="ll-form-group" style="display:flex;align-items:center;gap:.75rem;">
+              <input type="checkbox" id="jUrgent" style="width:18px;height:18px;accent-color:var(--accent);cursor:pointer;"/>
+              <label for="jUrgent" style="cursor:pointer;font-weight:600;color:var(--accent);">🔥 Mark as Urgent</label>
+            </div>
+            <button type="submit" class="btn-primary-ll" style="width:100%;padding:.75rem;" id="postBtn">Post Job</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- My Jobs -->
+      <div id="myJobs" class="section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+          <h2 class="page-title" style="margin:0;">My Posted Jobs</h2>
+          <button class="btn-primary-ll" onclick="showSection('postJob','')">+ Post New</button>
+        </div>
+        <div id="myJobsList"></div>
+      </div>
+
+      <!-- Applicants (sub-view) -->
+      <div id="applicants" class="section">
+        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;">
+          <button class="btn-secondary-ll" onclick="showSection('myJobs','')">← Back</button>
+          <h2 class="page-title" style="margin:0;" id="applicantsTitle">Applicants</h2>
+        </div>
+        <div id="applicantsList"></div>
+      </div>
+
+      <!-- Favourites -->
+      <div id="favorites" class="section">
+        <h2 class="page-title">Favourite Workers</h2>
+        <div id="favoritesList"></div>
+      </div>
+
+      <!-- Profile -->
+      <div id="profile" class="section">
+        <h2 class="page-title">My Profile</h2>
+        <div id="profileContent"></div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Complete Job Modal -->
+  <div id="completeModal" style="display:none;">
+    <div class="ll-modal-overlay" onclick="closeCompleteModal()">
+      <div class="ll-modal" onclick="event.stopPropagation()">
+        <div class="ll-modal-title">Mark Job Complete</div>
+        <input type="hidden" id="completeAppId"/>
+        <div class="ll-form-group">
+          <label class="ll-label">Completion Notes</label>
+          <textarea class="ll-input" id="completeNotes" rows="3" placeholder="Any notes about the completed work..."></textarea>
+        </div>
+        <div class="ll-form-group">
+          <label class="ll-label">Upload Photo (optional)</label>
+          <input type="file" id="completePhoto" class="ll-input" accept="image/*"/>
+        </div>
+        <div style="display:flex;gap:.75rem;">
+          <button class="btn-success-ll" style="padding:.65rem 1.3rem;" onclick="submitComplete()">✅ Confirm Complete</button>
+          <button class="btn-secondary-ll" onclick="closeCompleteModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rate Modal -->
+  <div id="rateModal" style="display:none;">
+    <div class="ll-modal-overlay" onclick="closeRateModal()">
+      <div class="ll-modal" onclick="event.stopPropagation()">
+        <div class="ll-modal-title">Rate this Worker</div>
+        <input type="hidden" id="rateAppId"/>
+        <div class="ll-form-group">
+          <label class="ll-label">Rating (1–5)</label>
+          <div id="starPicker" style="font-size:2rem;cursor:pointer;letter-spacing:4px;">
+            <span class="star" data-v="1">☆</span><span class="star" data-v="2">☆</span>
+            <span class="star" data-v="3">☆</span><span class="star" data-v="4">☆</span><span class="star" data-v="5">☆</span>
+          </div>
+          <input type="hidden" id="ratingValue" value="0"/>
+        </div>
+        <div class="ll-form-group">
+          <label class="ll-label">Skill Endorsement</label>
+          <input class="ll-input" id="endorseText" placeholder="e.g. Excellent electrician, very professional"/>
+        </div>
+        <div class="ll-form-group">
+          <label class="ll-label">Comment</label>
+          <textarea class="ll-input" id="ratingComment" rows="2" placeholder="Optional comment..."></textarea>
+        </div>
+        <div style="display:flex;gap:.75rem;">
+          <button class="btn-primary-ll" onclick="submitRating()">Submit</button>
+          <button class="btn-secondary-ll" onclick="closeRateModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"><span id="toastIcon"></span><span id="toastMsg"></span></div>
+  <script src="js/auth.js"></script>
+  <script>
+    requireAuth('CONTRACTOR');
+    document.getElementById('navName').textContent = '🏗️ ' + (localStorage.getItem('name') || '');
+
+    function showSection(id) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      document.querySelectorAll('.sidebar-item').forEach(b => b.classList.remove('active'));
+      if (id === 'myJobs') loadMyJobs();
+      if (id === 'favorites') loadFavorites();
+      if (id === 'profile') loadProfile();
+    }
+
+    function escHtml(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ── POST JOB ─────────────────────────────────
+    document.getElementById('jobForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const btn = document.getElementById('postBtn');
+      btn.textContent = 'Posting...'; btn.disabled = true;
+      try {
+        await apiPost('/api/jobs', {
+          title: document.getElementById('jTitle').value,
+          description: document.getElementById('jDesc').value,
+          skillsRequired: document.getElementById('jSkills').value,
+          location: document.getElementById('jLocation').value,
+          payRate: document.getElementById('jPay').value || null,
+          payType: document.getElementById('jPayType').value,
+          urgent: document.getElementById('jUrgent').checked
+        });
+        showToast('Job posted successfully! 🎉');
+        e.target.reset();
+        btn.textContent = 'Post Job'; btn.disabled = false;
+      } catch(err) {
+        showToast(err.message, 'error');
+        btn.textContent = 'Post Job'; btn.disabled = false;
+      }
+    });
+
+    // ── MY JOBS ───────────────────────────────────
+    async function loadMyJobs() {
+      try {
+        const jobs = await apiGet('/api/contractor/jobs');
+        const el = document.getElementById('myJobsList');
+        if (!jobs.length) { el.innerHTML = '<p style="color:var(--text-muted)">No jobs yet. <button onclick="showSection(\'postJob\')" class="btn-secondary-ll" style="font-size:.85rem;padding:.35rem .8rem;">Post one!</button></p>'; return; }
+        el.innerHTML = jobs.map(j => `
+          <div class="ll-card" style="margin-bottom:1rem;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;">
+              <div>
+                <h3 style="font-weight:700;">${escHtml(j.title)}
+                  ${j.urgent ? '<span class="ll-badge badge-urgent" style="margin-left:.5rem;">🔥 URGENT</span>' : ''}
+                </h3>
+                <p style="color:var(--text-muted);font-size:.85rem;">📍 ${escHtml(j.location||'N/A')} &nbsp;·&nbsp; 👥 ${j.applicantCount} applicant(s)</p>
+                <p style="color:var(--text-muted);font-size:.8rem;">Posted ${new Date(j.createdAt).toLocaleDateString()}</p>
+              </div>
+              <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+                ${statusBadge(j.status)}
+                <button class="btn-secondary-ll" style="font-size:.8rem;padding:.4rem .8rem;" onclick="viewApplicants(${j.id},'${escHtml(j.title)}')">View Applicants</button>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    async function viewApplicants(jobId, title) {
+      document.getElementById('applicantsTitle').textContent = `Applicants – ${title}`;
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.getElementById('applicants').classList.add('active');
+      try {
+        const apps = await apiGet(`/api/contractor/jobs/${jobId}/applicants`);
+        const el = document.getElementById('applicantsList');
+        if (!apps.length) { el.innerHTML = '<p style="color:var(--text-muted)">No applicants yet.</p>'; return; }
+        el.innerHTML = apps.map(a => `
+          <div class="ll-card" style="margin-bottom:1rem;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;">
+              <div>
+                <h3 style="font-weight:700;">${escHtml(a.workerName)}</h3>
+                <p style="color:var(--text-muted);font-size:.85rem;">📧 ${escHtml(a.workerEmail)} &nbsp;·&nbsp; 📞 ${escHtml(a.workerPhone||'N/A')}</p>
+                ${a.coverNote ? `<p style="margin-top:.5rem;font-size:.85rem;font-style:italic;">"${escHtml(a.coverNote)}"</p>` : ''}
+                <p style="font-size:.75rem;color:var(--text-muted);">Applied ${new Date(a.appliedAt).toLocaleDateString()}</p>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;">
+                ${statusBadge(a.status)}
+                ${a.status === 'PENDING' ? `
+                  <button class="btn-success-ll" style="font-size:.75rem;" onclick="updateStatus(${a.id},'ACCEPTED')">✅ Accept</button>
+                  <button class="btn-danger-ll" style="font-size:.75rem;" onclick="updateStatus(${a.id},'REJECTED')">❌ Reject</button>
+                ` : ''}
+                ${a.status === 'ACCEPTED' ? `
+                  <button class="btn-primary-ll" style="font-size:.75rem;" onclick="openComplete(${a.id})">🏁 Mark Complete</button>
+                ` : ''}
+                ${a.status === 'COMPLETED' ? `
+                  <button class="btn-success-ll" style="font-size:.75rem;" onclick="openRate(${a.id})">⭐ Rate Worker</button>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+        `).join('');
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    async function updateStatus(appId, status) {
+      try {
+        await apiPut(`/api/applications/${appId}/status`, { status });
+        showToast(`Application ${status.toLowerCase()}!`);
+        // Re-render current applicants view
+        document.querySelectorAll('.sidebar-item').forEach(b => {});
+        const title = document.getElementById('applicantsTitle').textContent.replace('Applicants – ','');
+        showToast(`Status updated to ${status}`);
+        location.reload(); // simple refresh; could be smarter
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    // ── COMPLETE ──────────────────────────────────
+    function openComplete(appId) {
+      document.getElementById('completeAppId').value = appId;
+      document.getElementById('completeNotes').value = '';
+      document.getElementById('completePhoto').value = '';
+      document.getElementById('completeModal').style.display = '';
+    }
+    function closeCompleteModal() { document.getElementById('completeModal').style.display = 'none'; }
+
+    async function submitComplete() {
+      const appId = document.getElementById('completeAppId').value;
+      const notes = document.getElementById('completeNotes').value;
+      const fileInput = document.getElementById('completePhoto');
+      let photoUrl = null;
+
+      if (fileInput.files.length > 0) {
+        const fd = new FormData();
+        fd.append('file', fileInput.files[0]);
+        try {
+          const r = await fetch('/api/files/upload', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + getToken() },
+            body: fd
+          });
+          const j = await r.json();
+          photoUrl = j.url;
+        } catch(e) { showToast('Photo upload failed', 'error'); return; }
+      }
+
+      try {
+        await apiPost(`/api/applications/${appId}/complete`, { photoUrl, notes });
+        closeCompleteModal();
+        showToast('Job marked as completed! 🎉');
+        setTimeout(() => location.reload(), 800);
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    // ── RATE ─────────────────────────────────────
+    let ratingVal = 0;
+    function openRate(appId) {
+      document.getElementById('rateAppId').value = appId;
+      ratingVal = 0; updateStars(0);
+      document.getElementById('endorseText').value = '';
+      document.getElementById('ratingComment').value = '';
+      document.getElementById('rateModal').style.display = '';
+    }
+    function closeRateModal() { document.getElementById('rateModal').style.display = 'none'; }
+
+    document.getElementById('starPicker').addEventListener('click', e => {
+      const s = e.target.closest('.star');
+      if (s) { ratingVal = +s.dataset.v; document.getElementById('ratingValue').value = ratingVal; updateStars(ratingVal); }
+    });
+    function updateStars(n) {
+      document.querySelectorAll('.star').forEach((s,i) => s.textContent = i < n ? '★' : '☆');
+    }
+
+    async function submitRating() {
+      const appId = document.getElementById('rateAppId').value;
+      const rating = +document.getElementById('ratingValue').value;
+      if (!rating) { showToast('Please select a star rating', 'error'); return; }
+      try {
+        await apiPost(`/api/applications/${appId}/rate`, {
+          rating, comment: document.getElementById('ratingComment').value
+        });
+        const endorse = document.getElementById('endorseText').value.trim();
+        if (endorse) {
+          await apiPost(`/api/applications/${appId}/endorse`, { skillDescription: endorse });
+        }
+        closeRateModal();
+        showToast('Rating and endorsement submitted! ⭐');
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    // ── FAVOURITES ────────────────────────────────
+    async function loadFavorites() {
+      try {
+        const favs = await apiGet('/api/favorites');
+        const el = document.getElementById('favoritesList');
+        if (!favs.length) { el.innerHTML = '<p style="color:var(--text-muted)">No favourite workers yet. Favourite workers from their profile page.</p>'; return; }
+        el.innerHTML = favs.map(f => `
+          <div class="ll-card" style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-weight:600;">👤 Worker #${f.worker.id} – ${escHtml(f.worker.name)}</span>
+            <button class="btn-danger-ll" style="font-size:.8rem;padding:.35rem .8rem;" onclick="removeFav(${f.worker.id})">Remove</button>
+          </div>
+        `).join('');
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    async function removeFav(workerId) {
+      try {
+        await apiDelete(`/api/favorites/${workerId}`);
+        showToast('Removed from favourites');
+        loadFavorites();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    // ── PROFILE ───────────────────────────────────
+    async function loadProfile() {
+      const userId = localStorage.getItem('userId');
+      try {
+        const p = await apiGet(`/api/contractor/profile/${userId}`);
+        const avg = p.averageRating ? p.averageRating.toFixed(1) : '0.0';
+        document.getElementById('profileContent').innerHTML = `
+          <div class="ll-card">
+            <h2 style="font-size:1.4rem;font-weight:700;">${escHtml(p.name)}</h2>
+            <p style="color:var(--text-muted);">📧 ${escHtml(p.email)}</p>
+            ${p.profile?.companyName ? `<p style="margin-top:.5rem;"><strong>Company:</strong> ${escHtml(p.profile.companyName)}</p>` : ''}
+            <p style="margin-top:.75rem;">
+              <span class="stars">${starsHtml(p.averageRating)}</span>
+              <span style="color:var(--text-muted);font-size:.85rem;margin-left:.5rem;">${avg} avg rating (${p.ratings?.length||0} reviews)</span>
+            </p>
+          </div>
+        `;
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+  </script>
+</body>
+</html>
